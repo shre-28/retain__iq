@@ -6,9 +6,10 @@ import streamlit as st
 # 1. Page Configuration
 st.set_page_config(page_title="RetainIQ", page_icon="📊", layout="wide")
 
-# 2. Strict Custom CSS for Layout Consistency
+# 2. Complete CSS Customization
 st.markdown("""
 <style>
+    /* Hide Streamlit Default Chrome */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -33,6 +34,23 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     }
     
+    /* Hide Plus-Minus (+ -) Buttons & Show Native Up-Down Spin Arrows */
+    div[data-testid="stNumberInputStepDown"], 
+    div[data-testid="stNumberInputStepUp"] {
+        display: none !important;
+    }
+    
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: inner-spin-button !important;
+        opacity: 1 !important;
+        cursor: pointer;
+    }
+    
+    input[type=number] {
+        -moz-appearance: textfield;
+    }
+
     /* Submit Button */
     div[data-testid="stForm"] button {
         background-color: #0f172a;
@@ -51,7 +69,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Model Loading
+# 3. Model Loading Logic
 MODEL_PATH = os.path.join('notebooks - Copy', 'xgboost_churn_model.pkl')
 if not os.path.exists(MODEL_PATH):
     MODEL_PATH = 'xgboost_churn_model.pkl'
@@ -59,8 +77,14 @@ if not os.path.exists(MODEL_PATH):
 @st.cache_resource
 def load_model():
     if os.path.exists(MODEL_PATH):
-        return joblib.load(MODEL_PATH)
-    return None
+        try:
+            return joblib.load(MODEL_PATH)
+        except Exception as e:
+            st.error(f"Error loading model: {e}")
+            return None
+    else:
+        st.error(f"Model file not found at `{MODEL_PATH}`")
+        return None
 
 model = load_model()
 
@@ -83,7 +107,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 5. Banner Section (Native Streamlit Column Split for Responsiveness)
+# 5. Banner Section
 head_col1, head_col2 = st.columns([3, 1])
 
 with head_col1:
@@ -172,40 +196,43 @@ if submit_button:
             "EstimatedSalary": float(estimated_salary)
         }])
 
-        prediction = model.predict(customer_data)[0]
-        probability = model.predict_proba(customer_data)[0][1]
-        churn_prob = round(probability * 100, 2)
+        try:
+            prediction = model.predict(customer_data)[0]
+            probability = model.predict_proba(customer_data)[0][1]
+            churn_prob = round(probability * 100, 2)
 
-        if prediction == 1:
-            title_color = "#dc2626"
-            bar_color = "#ef4444"
-            status_text = "Customer has a HIGH churn risk"
-            badge_text = "HIGH RISK"
-            badge_bg = "#fee2e2"
-            badge_color = "#991b1b"
-            rec_text = "Recommendation: Consider applying targeted retention incentives."
-        else:
-            title_color = "#16a34a"
-            bar_color = "#22c55e"
-            status_text = "Customer has a LOW churn risk"
-            badge_text = "LOW RISK"
-            badge_bg = "#dcfce7"
-            badge_color = "#166534"
-            rec_text = "Recommendation: This customer currently shows a lower likelihood of leaving."
+            if prediction == 1:
+                title_color = "#dc2626"
+                bar_color = "#ef4444"
+                status_text = "Customer has a HIGH churn risk"
+                badge_text = "HIGH RISK"
+                badge_bg = "#fee2e2"
+                badge_color = "#991b1b"
+                rec_text = "Recommendation: Consider applying targeted retention incentives."
+            else:
+                title_color = "#16a34a"
+                bar_color = "#22c55e"
+                status_text = "Customer has a LOW churn risk"
+                badge_text = "LOW RISK"
+                badge_bg = "#dcfce7"
+                badge_color = "#166534"
+                rec_text = "Recommendation: This customer currently shows a lower likelihood of leaving."
 
-        st.markdown(f"""
-        <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
-            <div style="font-size: 10px; font-weight: 700; color: #2563eb; letter-spacing: 0.5px; margin-bottom: 6px;">RISK ASSESSMENT</div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2 style="color: {title_color}; font-size: 20px; font-weight: 700; margin: 0;">{status_text}</h2>
-                <span style="font-size: 32px; font-weight: 800; color: #0f172a;">{churn_prob}%</span>
+            st.markdown(f"""
+            <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                <div style="font-size: 10px; font-weight: 700; color: #2563eb; letter-spacing: 0.5px; margin-bottom: 6px;">RISK ASSESSMENT</div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="color: {title_color}; font-size: 20px; font-weight: 700; margin: 0;">{status_text}</h2>
+                    <span style="font-size: 32px; font-weight: 800; color: #0f172a;">{churn_prob}%</span>
+                </div>
+                <div style="background-color: #f1f5f9; border-radius: 999px; height: 8px; width: 100%; margin: 12px 0 10px 0; overflow: hidden;">
+                    <div style="background-color: {bar_color}; width: {churn_prob}%; height: 100%; border-radius: 999px;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #64748b; font-size: 12px;">{rec_text}</span>
+                    <span style="background-color: {badge_bg}; color: {badge_color}; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px;">{badge_text}</span>
+                </div>
             </div>
-            <div style="background-color: #f1f5f9; border-radius: 999px; height: 8px; width: 100%; margin: 12px 0 10px 0; overflow: hidden;">
-                <div style="background-color: {bar_color}; width: {churn_prob}%; height: 100%; border-radius: 999px;"></div>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #64748b; font-size: 12px;">{rec_text}</span>
-                <span style="background-color: {badge_bg}; color: {badge_color}; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px;">{badge_text}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
