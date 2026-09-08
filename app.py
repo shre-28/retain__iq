@@ -1,170 +1,82 @@
-from flask import Flask, render_template, request
-import joblib
-import pandas as pd
 import os
+import pickle
+import numpy as np
+import pandas as pd
+import streamlit as st
 
+# 1. Page Config Setup
+st.set_page_config(
+    page_title="RetainIQ - Churn Predictor",
+    page_icon="📊",
+    layout="centered"
+)
 
-# --------------------------------------------------
-# Create Flask application
-# --------------------------------------------------
+# 2. Title & Description
+st.title("📊 RetainIQ: Customer Churn Prediction")
+st.write("Fill in the customer details below to predict churn probability.")
 
-app = Flask(__name__)
+# 3. Model Loading Logic
+MODEL_PATH = os.path.join('notebooks - Copy', 'xgboost_churn_model.pkl')
 
+@st.cache_resource
+def load_churn_model():
+    if os.path.exists(MODEL_PATH):
+        try:
+            with open(MODEL_PATH, 'rb') as f:
+                return pickle.load(f)
+        except Exception as e:
+            st.error(f"Error loading model: {e}")
+            return None
+    else:
+        st.error(f"Model file not found at `{MODEL_PATH}`")
+        return None
 
-# --------------------------------------------------
-# Find the trained model
-# --------------------------------------------------
+model = load_churn_model()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 4. Input Form (Tumchya dataset validation inputs nusar adjust kara)
+st.subheader("Customer Information")
 
-MODEL_PATHS = [
-    os.path.join(BASE_DIR, "xgboost_churn_model.pkl"),
-    os.path.join(BASE_DIR, "notebooks", "xgboost_churn_model.pkl")
-]
+with st.form("churn_form"):
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        tenure = st.number_input("Tenure (Months)", min_value=0, max_value=120, value=12)
+        monthly_charges = st.number_input("Monthly Charges ($)", min_value=0.0, value=50.0)
+        
+    with col2:
+        total_charges = st.number_input("Total Charges ($)", min_value=0.0, value=600.0)
+        contract = st.selectbox("Contract Type", ["Month-to-month", "One year", "Two year"])
 
+    submit_button = st.form_submit_button(label="Predict Churn Risk")
 
-def load_model():
-    """
-    Load the trained XGBoost pipeline.
-    Checks both root folder and notebooks folder.
-    """
-
-    for path in MODEL_PATHS:
-        if os.path.exists(path):
-            return joblib.load(path)
-
-    raise FileNotFoundError(
-        "xgboost_churn_model.pkl was not found. "
-        "Please upload the model file to the GitHub repository."
-    )
-
-
-# Model will be loaded only when prediction is requested
-model = None
-
-
-def get_model():
-    global model
-
+# 5. Prediction Execution
+if submit_button:
     if model is None:
-        model = load_model()
-
-    return model
-
-
-# --------------------------------------------------
-# Home page
-# --------------------------------------------------
-
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-
-# --------------------------------------------------
-# Prediction route
-# --------------------------------------------------
-
-@app.route("/predict", methods=["POST"])
-def predict():
-
-    try:
-        # ------------------------------------------
-        # Get customer information from form
-        # ------------------------------------------
-
-        credit_score = float(request.form["CreditScore"])
-        geography = request.form["Geography"]
-        gender = request.form["Gender"]
-        age = float(request.form["Age"])
-        tenure = float(request.form["Tenure"])
-        balance = float(request.form["Balance"])
-        num_products = float(request.form["NumOfProducts"])
-        has_credit_card = float(request.form["HasCrCard"])
-        is_active_member = float(request.form["IsActiveMember"])
-        estimated_salary = float(request.form["EstimatedSalary"])
-
-
-        # ------------------------------------------
-        # Create DataFrame
-        # ------------------------------------------
-
-        customer_data = pd.DataFrame([{
-            "CreditScore": credit_score,
-            "Geography": geography,
-            "Gender": gender,
-            "Age": age,
-            "Tenure": tenure,
-            "Balance": balance,
-            "NumOfProducts": num_products,
-            "HasCrCard": has_credit_card,
-            "IsActiveMember": is_active_member,
-            "EstimatedSalary": estimated_salary
-        }])
-
-
-        # ------------------------------------------
-        # Load trained model
-        # ------------------------------------------
-
-        trained_model = get_model()
-
-
-        # ------------------------------------------
-        # Make prediction
-        # ------------------------------------------
-
-        prediction = trained_model.predict(customer_data)[0]
-
-
-        # ------------------------------------------
-        # Get churn probability
-        # ------------------------------------------
-
-        probability = trained_model.predict_proba(customer_data)[0][1]
-
-        churn_probability = round(probability * 100, 2)
-
-
-        # ------------------------------------------
-        # Prediction result
-        # ------------------------------------------
-
-        if prediction == 1:
-            result = "Customer is likely to churn"
-        else:
-            result = "Customer is likely to stay"
-
-
-        # ------------------------------------------
-        # Send result to frontend
-        # ------------------------------------------
-
-        return render_template(
-            "index.html",
-            prediction=result,
-            probability=churn_probability
-        )
-
-
-    except Exception as e:
-
-        # Show error on webpage instead of crashing silently
-        return render_template(
-            "index.html",
-            prediction="Prediction Error",
-            probability=None,
-            error=str(e)
-        )
-
-
-# --------------------------------------------------
-# Run application locally
-# --------------------------------------------------
-
-if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000)),
-        debug=False
-    )
+        st.error("Model is not loaded properly. Please check your repository files.")
+    else:
+        # Prepare input data dictionary to match model features
+        input_data = {
+            'tenure': tenure,
+            'MonthlyCharges': monthly_charges,
+            'TotalCharges': total_charges,
+            'Contract': contract
+        }
+        
+        input_df = pd.DataFrame([input_data])
+        
+        try:
+            prediction = model.predict(input_df)[0]
+            probability = model.predict_proba(input_df)[0][1] if hasattr(model, "predict_proba") else None
+            
+            st.markdown("---")
+            if prediction == 1:
+                st.error("⚠️ **High Risk of Churn!**")
+                if probability is not None:
+                    st.write(f"Churn Probability: **{probability * 100:.2f}%**")
+            else:
+                st.success("✅ **Customer is Likely to Stay (Retained)**")
+                if probability is not None:
+                    st.write(f"Retention Probability: **{(1 - probability) * 100:.2f}%**")
+                    
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
