@@ -3,13 +3,13 @@ import joblib
 import pandas as pd
 import streamlit as st
 
-# 1. Page Configuration
+# 1. Page Setup
 st.set_page_config(page_title="RetainIQ", page_icon="📊", layout="wide")
 
-# 2. Complete CSS Customization
+# 2. Strict CSS: Force Up/Down Spinners & Hide Streamlit + / - Buttons
 st.markdown("""
 <style>
-    /* Hide Streamlit Default Chrome */
+    /* Hide Streamlit Header, Footer, and Main Menu */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -24,8 +24,8 @@ st.markdown("""
         background-color: #f8fafc;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    
-    /* Input Box Styles */
+
+    /* Form Container */
     div[data-testid="stForm"] {
         background-color: #ffffff;
         border-radius: 12px;
@@ -33,25 +33,32 @@ st.markdown("""
         border: 1px solid #e2e8f0;
         box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     }
-    
-    /* Hide Plus-Minus (+ -) Buttons & Show Native Up-Down Spin Arrows */
-    div[data-testid="stNumberInputStepDown"], 
+
+    /* -------------------------------------------------------------
+       FORCE REMOVE STREAMLIT '+' AND '-' BUTTONS
+    ------------------------------------------------------------- */
+    /* Target and remove the button wrapper divs in number inputs */
+    div[data-testid="stNumberInput"] button {
+        display: none !important;
+    }
+    div[data-testid="stNumberInputStepDown"],
     div[data-testid="stNumberInputStepUp"] {
         display: none !important;
     }
-    
+
+    /* Force Native Browser Up-Down Arrows inside input */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: inner-spin-button !important;
         opacity: 1 !important;
-        cursor: pointer;
+        cursor: pointer !important;
+        display: block !important;
     }
-    
     input[type=number] {
-        -moz-appearance: textfield;
+        -moz-appearance: numberinput !important;
     }
 
-    /* Submit Button */
+    /* Submit Button Styling */
     div[data-testid="stForm"] button {
         background-color: #0f172a;
         color: #ffffff;
@@ -69,7 +76,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Model Loading Logic
+# 3. Model Loader
 MODEL_PATH = os.path.join('notebooks - Copy', 'xgboost_churn_model.pkl')
 if not os.path.exists(MODEL_PATH):
     MODEL_PATH = 'xgboost_churn_model.pkl'
@@ -82,13 +89,11 @@ def load_model():
         except Exception as e:
             st.error(f"Error loading model: {e}")
             return None
-    else:
-        st.error(f"Model file not found at `{MODEL_PATH}`")
-        return None
+    return None
 
 model = load_model()
 
-# 4. Top Header Navigation
+# 4. Navigation Header
 st.markdown("""
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">
     <div style="display: flex; align-items: center; gap: 10px;">
@@ -107,7 +112,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 5. Banner Section
+# 5. Top Banner
 head_col1, head_col2 = st.columns([3, 1])
 
 with head_col1:
@@ -143,7 +148,7 @@ with head_col2:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 6. Form Title
+# 6. Profile Form
 st.markdown("""
 <div>
     <h3 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0;">Customer Profile</h3>
@@ -151,7 +156,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 7. Main Input Form
 with st.form("churn_form"):
     st.markdown("<p style='font-weight: 700; font-size: 12px; color: #334155; margin-bottom: 4px;'>Personal Information</p>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
@@ -180,7 +184,7 @@ with st.form("churn_form"):
 
     submit_button = st.form_submit_button("Analyze Churn Risk →")
 
-# 8. Assessment Display
+# 7. Output Display Card
 if submit_button:
     if model is not None:
         customer_data = pd.DataFrame([{
@@ -235,4 +239,4 @@ if submit_button:
             </div>
             """, unsafe_allow_html=True)
         except Exception as e:
-            st.error(f"Prediction failed: {e}")
+            st.error(f"Prediction error: {e}")
